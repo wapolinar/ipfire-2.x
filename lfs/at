@@ -1,0 +1,97 @@
+###############################################################################
+#                                                                             #
+# IPFire.org - A linux based firewall                                         #
+# Copyright (C) 2007-2023  IPFire Team  <info@ipfire.org>                     #
+#                                                                             #
+# This program is free software: you can redistribute it and/or modify        #
+# it under the terms of the GNU General Public License as published by        #
+# the Free Software Foundation, either version 3 of the License, or           #
+# (at your option) any later version.                                         #
+#                                                                             #
+# This program is distributed in the hope that it will be useful,             #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
+# GNU General Public License for more details.                                #
+#                                                                             #
+# You should have received a copy of the GNU General Public License           #
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
+#                                                                             #
+###############################################################################
+
+###############################################################################
+# Definitions
+###############################################################################
+
+include Config
+
+SUMMARY	   = at - delayed job execution and batch processing
+
+VER        = 3.2.5
+
+THISAPP    = at_$(VER)
+DL_FILE    = $(THISAPP).orig.tar.gz
+DL_FROM    = "https://anduin.linuxfromscratch.org/BLFS/at"
+DIR_APP    = $(DIR_SRC)/$(THISAPP)
+TARGET     = $(DIR_INFO)/$(THISAPP)
+PROG       = at
+PAK_VER    = 10
+
+DEPS       = #sendmail
+
+SERVICES   =
+
+CFLAGS    += -fcommon
+
+###############################################################################
+# Top-level Rules
+###############################################################################
+
+objects = $(DL_FILE)
+
+$(DL_FILE) = $(DL_FROM)/$(DL_FILE)
+
+$(DL_FILE)_BLAKE2 = 30cd8e53aff8176ceea62f2a34c0cc0706b35fc187c2da58f86ec6ca4cec4701bfab9d932949d57b9750a18841d315d7c9a4289691f209c899598991f6541a32
+
+install : $(TARGET)
+
+check : $(patsubst %,$(DIR_CHK)/%,$(objects))
+
+download :$(patsubst %,$(DIR_DL)/%,$(objects))
+
+b2 : $(subst %,%_BLAKE2,$(objects))
+
+###############################################################################
+# Downloading, checking, b2sum
+###############################################################################
+
+$(patsubst %,$(DIR_CHK)/%,$(objects)) :
+	@$(CHECK)
+
+$(patsubst %,$(DIR_DL)/%,$(objects)) :
+	@$(LOAD)
+
+$(subst %,%_BLAKE2,$(objects)) :
+	@$(B2SUM)
+
+dist:
+	@$(PAK)
+
+###############################################################################
+# Installation Details
+###############################################################################
+
+$(TARGET) : $(patsubst %,$(DIR_DL)/%,$(objects))
+	@$(PREBUILD)
+	@rm -rf $(DIR_APP) && cd $(DIR_SRC) && tar axf $(DIR_DL)/$(DL_FILE)
+	groupadd -g 17 atd && useradd -d /dev/null -c "atd daemon" -g atd -s /bin/false -u 17 atd
+	cd $(DIR_APP) && ./configure --with-daemon_username=atd        \
+				--with-daemon_groupname=atd       \
+				--with-jobdir=/var/spool/atjobs   \
+				--with-atspool=/var/spool/atspool \
+				--prefix=/usr \
+				--sysconfdir=/etc \
+				SENDMAIL=/usr/sbin/sendmail
+	cd $(DIR_APP) && make -j1
+	cd $(DIR_APP) && make install docdir=/dev/null atdocdir=/dev/null
+	@rm -rf $(DIR_APP)
+	@$(POSTBUILD)
